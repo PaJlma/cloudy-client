@@ -163,6 +163,7 @@ const StorageTableContainer: FC = () => {
 
     const uploadKey = v4();
     let breaked = false;
+    let error = false;
 
     const handleCancelUpload = async (controller: AbortController) => {
       const result = await modal.confirm({
@@ -178,7 +179,7 @@ const StorageTableContainer: FC = () => {
     };
 
     for (let i = 0; i < allFiles.length; i += BATCH) {
-      if (breaked) break;
+      if (breaked || error) break;
 
       const slice = allFiles.slice(i, i + BATCH);
       const fd = new FormData();
@@ -189,7 +190,7 @@ const StorageTableContainer: FC = () => {
 
       const controller = new AbortController();
 
-      await handleUploadFiles({
+      error = await handleUploadFiles({
         formdata: fd,
         uploading: slice.length,
         uploaded: i,
@@ -200,7 +201,7 @@ const StorageTableContainer: FC = () => {
       });
     }
 
-    if (!breaked) {
+    if (!breaked && !error) {
       notification.open({
         key: uploadKey,
         type: "success",
@@ -359,6 +360,7 @@ const StorageTableContainer: FC = () => {
         duration: 0,
         message,
       });
+      return false;
     } catch (error) {
       if (isAxiosError(error) && [400, 500].includes(error.status ?? 0)) {
         notification.open({
@@ -383,6 +385,7 @@ const StorageTableContainer: FC = () => {
       } else {
         throw error;
       }
+      return true;
     }
   };
 
@@ -399,6 +402,8 @@ const StorageTableContainer: FC = () => {
 
     const changeEventHandler = async () => {
       const BATCH = 5;
+
+      let error = false;
 
       for (let index = 0; index < (upload.files?.length ?? 0); index += BATCH) {
         if (breaked) break;
@@ -426,11 +431,11 @@ const StorageTableContainer: FC = () => {
           }
         };
 
-        if (breaked) {
+        if (breaked || error) {
           break;
         }
 
-        await handleUploadFiles({
+        error = await handleUploadFiles({
           formdata,
           uploading: slice.length ?? 0,
           uploaded: index,
@@ -442,20 +447,22 @@ const StorageTableContainer: FC = () => {
       }
 
       upload.removeEventListener("change", changeEventHandler);
-      notification.open({
-        key: uploadKey,
-        type: "success",
-        style: { width: 500 },
-        description: (
-          <Flex gap={10} align="center">
-            <span>Запись файлов на диск</span>
-            <CheckOutlined className={styles["check"]} />
-          </Flex>
-        ),
-        placement: "bottomRight",
-        duration: 5,
-        message: "Файлы успешно загружены",
-      });
+      if (!error && !breaked) {
+        notification.open({
+          key: uploadKey,
+          type: "success",
+          style: { width: 500 },
+          description: (
+            <Flex gap={10} align="center">
+              <span>Запись файлов на диск</span>
+              <CheckOutlined className={styles["check"]} />
+            </Flex>
+          ),
+          placement: "bottomRight",
+          duration: 5,
+          message: "Файлы успешно загружены",
+        });
+      }
       refetchEntities();
     };
 
